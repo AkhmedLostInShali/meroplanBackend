@@ -51,9 +51,31 @@ class RetailersResource(Resource):
 class RetailersListResource(Resource):
     def get(self):
         db_sess = db_session.create_session()
-        retailers = db_sess.query(Retailer).all()
-        return jsonify({'messages': [retailer.to_dict(only=['id', 'name', 'category'])
-                                     for retailer in retailers]})
+
+        category_id = request.args.get('category_id', default=0, type=int)
+        if category_id:
+            retailers_query = db_sess.query(Retailer).filter(
+                Retailer.category_root_chain.startswith(f'{category_id};') |
+                Retailer.category_root_chain.endswith(f';{category_id}') |
+                Retailer.category_root_chain.contains(f';{category_id};'))
+        else:
+            retailers_query = db_sess.query(Retailer)
+
+        if retailers_query.count() == 0:
+            return jsonify({'items': [], 'total_pages': 0, 'status_code': 200})
+
+        page_len = 5
+        total_pages = retailers_query.count() // page_len + (1 if retailers_query.count() % page_len else 0)
+        page = min([total_pages, max(1, request.args.get('page', default=1, type=int))])
+        retailers = retailers_query.slice((page - 1) * page_len, page * page_len).all()
+
+        out_list = []
+        for retailer in retailers:
+            out_dict = retailer.to_dict(only=('id', 'image_path', 'name'))
+            out_dict['categories'] = [int(x) for x in retailer.category_root_chain.split(';') if x]
+            out_list.append(out_dict)
+        db_sess.close()
+        return jsonify({'items': out_list, 'total_pages': total_pages, 'status_code': 200})
 
     def post(self):
         args = parser.parse_args()

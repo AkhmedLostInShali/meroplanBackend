@@ -30,10 +30,11 @@ class ProductsResource(Resource):
         db_sess = db_session.create_session()
         product = db_sess.query(Product).get(products_id)
         out_dict = product.to_dict(only=('id', 'image_path', 'name', 'search_info', 'description', 'price', 'quantity',
-                                         'category', 'retailers_id'))
-        out_dict['retailer'] = product.retailer.to_dict(only=('id', 'name', 'image_path'))
+                                         'retailers_id'))
+        out_dict['retailers_name'] = product.retailer.name
+        out_dict['categories'] = [int(x) for x in product.category_root_chain.split(';') if x]
         db_sess.close()
-        return jsonify({'product': out_dict})
+        return jsonify({'item': out_dict, 'status_code': 200})
 
     def delete(self, products_id):
         abort_if_product_not_found(products_id)
@@ -70,17 +71,41 @@ class ProductsResource(Resource):
 class ProductsListResource(Resource):
     def get(self):
         db_sess = db_session.create_session()
-        products = db_sess.query(Product).all()
+
+        search_query = f"%{'%'.join(request.args.get('search_query', default='', type=str).split('_'))}%".lower()
+
+        category_id = request.args.get('category_id', default=0, type=int)
+        if category_id:
+            products_query = db_sess.query(Product).filter(
+                Product.category_root_chain.startswith(f'{category_id};') |
+                Product.category_root_chain.endswith(f';{category_id}') |
+                Product.category_root_chain.contains(f';{category_id};')).filter(
+                Product.name.ilike(search_query) |
+                Product.description.ilike(search_query) |
+                Product.search_info.ilike(search_query))
+        else:
+            products_query = db_sess.query(Product).filter(
+                Product.name.ilike(search_query) |
+                Product.description.ilike(search_query) |
+                Product.search_info.ilike(search_query))
+
+        if products_query.count() == 0:
+            return jsonify({'items': [], 'total_pages': 0, 'status_code': 200})
+
+        page_len = 10
+        total_pages = products_query.count() // page_len + (1 if products_query.count() % page_len else 0)
+        page = min([total_pages, request.args.get('page', default=1, type=int)])
+        products = products_query.slice((page - 1) * page_len, page * page_len).all()
+
         out_list = []
         for product in products:
             out_dict = product.to_dict(only=('id', 'image_path', 'name', 'price', 'quantity', 'description',
-                                             'search_info', 'retailers_id'))
+                                             'retailers_id'))
             out_dict['retailers_name'] = db_sess.query(Retailer).get(product.retailers_id).name
-            out_dict['categories'] = [int(x) for x in db_sess.query(Category).get(product.category_id
-                                                                                  ).root_chain.split(';')]
+            out_dict['categories'] = [int(x) for x in product.category_root_chain.split(';') if x]
             out_list.append(out_dict)
         db_sess.close()
-        return jsonify(out_list)
+        return jsonify({'items': out_list, 'total_pages': total_pages, 'status_code': 200})
 
     def post(self):
         args = parser.parse_args()
@@ -125,15 +150,14 @@ class ProductsByCategoryResource(Resource):
     def get(self, category_id):
         db_sess = db_session.create_session()
         products = db_sess.query(Product).filter(
-            Product.category_id == category_id |
-            category_id in db_sess.query(Category).get(Product.category_id).root_chain.split(';')).all()
+            Product.category_root_chain.endswith(f'{category_id}') |
+            Product.category_root_chain.contains(f'{category_id};')).all()
         out_list = []
         for product in products:
             out_dict = product.to_dict(only=('id', 'image_path', 'name', 'price', 'quantity', 'description',
                                              'search_info', 'retailers_id'))
             out_dict['retailers_name'] = db_sess.query(Retailer).get(product.retailers_id).name
-            out_dict['categories'] = [int(x) for x in db_sess.query(Category).get(product.category_id
-                                                                                  ).root_chain.split(';')]
+            out_dict['categories'] = [int(x) for x in product.category_root_chain.split(';')]
             out_list.append(out_dict)
         db_sess.close()
         return jsonify(out_list)

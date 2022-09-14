@@ -2,6 +2,7 @@ from flask import jsonify, request
 from flask_restful import abort, Resource
 from .. import db_session, my_parsers
 from ..users import User
+from server import token_required
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -16,15 +17,31 @@ def abort_if_user_not_found(users_id):
         abort(404, message=f"User {users_id} not found")
 
 
-class UsersResource(Resource):
-    def get(self, users_id):
+def jsonify_user(user):
+    user_dict = user.to_dict(only=['id', 'name', 'phone', 'cart', 'address_list', 'rank', 'image_path'])
+    user_dict['cart'] = [{'products_id': assoc.products_id,
+                          'product': assoc.product.to_dict(
+                              only=('id', 'image_path', 'name', 'price', 'quantity', 'description',
+                                    'retailers_id'))} for assoc in user.cart]
+    user_dict['address_list'] = [address.to_dict(only=('id', 'name', 'city', 'street', 'house'))
+                                 for address in user.address_list]
+    return user_dict
+
+
+class MyProfileResource(Resource):
+    @token_required
+    def get(self, token_data):
+        users_id = token_data['user_id']
         abort_if_user_not_found(users_id)
         db_sess = db_session.create_session()
         user = db_sess.query(User).get(users_id)
-        user_dict = user.to_dict()
-        return jsonify({'user': user_dict})
+        user_dict = jsonify_user(user)
+        db_sess.close()
+        return jsonify({'item': user_dict, 'status_code': 200})
 
-    def delete(self, users_id):
+    @token_required
+    def delete(self, token_data):
+        users_id = token_data['user_id']
         abort_if_user_not_found(users_id)
         db_sess = db_session.create_session()
         user = db_sess.query(User).get(users_id)
@@ -34,23 +51,25 @@ class UsersResource(Resource):
         db_sess.commit()
         return jsonify({'success': 'OK'})
 
-    def put(self, users_id):
-        abort_if_user_not_found(users_id)
-        if not request.json:
+    @token_required
+    def put(self, token_data):
+        if not request.args:
             return jsonify({'error': 'Empty request'})
+        users_id = token_data['user_id']
+        abort_if_user_not_found(users_id)
         db_sess = db_session.create_session()
-        if request.json.get('id') and request.json.get('id') in [user.id for user in db_sess.query(User).all()]:
-            return jsonify({'error': 'Id already exists'})
-        if request.json.get('phone') and request.json.get('phone') in [user.phone for user
-                                                                       in db_sess.query(User).all()]:
-            return jsonify({'error': 'user with this phone number already exists'})
+        # if request.json.get('id') and request.json.get('id') in [user.id for user in db_sess.query(User).all()]:
+        #     return jsonify({'error': 'Id already exists'})
+        # if request.json.get('phone') and request.json.get('phone') in [user.phone for user
+        #                                                                in db_sess.query(User).all()]:
+        #     return jsonify({'error': 'user with this phone number already exists'})
         user = db_sess.query(User).get(users_id)
-        user.id = request.json['id'] if request.json.get('id') else user.id
-        user.email = request.json['phone'] if request.json.get('phone') else user.email
-        user.name = request.json['name'] if request.json.get('name') else user.name
-        user.rank = request.json['rank'] if request.json.get('rank') else user.rank
+        name = request.args['name'] if request.args.get('name') else user.name
+        user.name = name
+        user.rank = request.args['rank'] if request.args.get('rank') else user.rank
         db_sess.commit()
-        return jsonify({'success': 'OK'})
+        db_sess.close()
+        return jsonify({'status_code': '200'})
 
 
 class UsersListResource(Resource):
@@ -76,7 +95,6 @@ class UsersListResource(Resource):
         db_sess.add(user)
         db_sess.commit()
         return jsonify({'success': 'OK'})
-
 
 # class UsersSearchResource(Resource):
 #     def get(self, to_find):

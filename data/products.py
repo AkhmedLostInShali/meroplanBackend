@@ -17,5 +17,6 @@ class Product(SqlAlchemyBase, SerializerMixin):
     image_path = sqlalchemy.Column(sqlalchemy.String(128), nullable=False)
     retailers_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey("retailers.id"))
     retailer = orm.relationship("Retailer", back_populates='products')
-    category_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey("categories.id"))
+    category_root_chain = sqlalchemy.Column(sqlalchemy.String(128), sqlalchemy.ForeignKey("categories.root_chain")
+                                            , default='1', nullable=False, index=True)
     category = orm.relationship("Category")
