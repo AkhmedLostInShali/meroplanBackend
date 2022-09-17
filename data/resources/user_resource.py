@@ -58,11 +58,6 @@ class MyProfileResource(Resource):
         users_id = token_data['user_id']
         abort_if_user_not_found(users_id)
         db_sess = db_session.create_session()
-        # if request.json.get('id') and request.json.get('id') in [user.id for user in db_sess.query(User).all()]:
-        #     return jsonify({'error': 'Id already exists'})
-        # if request.json.get('phone') and request.json.get('phone') in [user.phone for user
-        #                                                                in db_sess.query(User).all()]:
-        #     return jsonify({'error': 'user with this phone number already exists'})
         user = db_sess.query(User).get(users_id)
         name = request.args['name'] if request.args.get('name') else user.name
         user.name = name

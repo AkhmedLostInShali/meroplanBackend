@@ -13,7 +13,7 @@ class Product(SqlAlchemyBase, SerializerMixin):
     description = sqlalchemy.Column(sqlalchemy.String(256), nullable=False)
     search_info = sqlalchemy.Column(sqlalchemy.String(256), nullable=True)
     price = sqlalchemy.Column(sqlalchemy.Integer, nullable=False)
-    quantity = sqlalchemy.Column(sqlalchemy.Integer, nullable=True)
+    quantity = sqlalchemy.Column(sqlalchemy.Integer, nullable=False)
     image_path = sqlalchemy.Column(sqlalchemy.String(128), nullable=False)
     retailers_id = sqlalchemy.Column(sqlalchemy.Integer, sqlalchemy.ForeignKey("retailers.id"))
     retailer = orm.relationship("Retailer", back_populates='products')

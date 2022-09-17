@@ -34,29 +34,13 @@ ip_ban.url_pattern_add('^/api/auth/log_in$', match_type='regex')
 def main():
     db_session.global_init('Akhmed', 'Akhmedik2005', 'localhost:3306', "took")
     api.add_resource(user_resource.MyProfileResource, '/api/my_profile')
-    # api.add_resource(user_resource.UsersSearchResource, '/api/users/<to_find>')
-    # api.add_resource(user_resource.UsersListResource, '/api/users')
-    #
-    # api.add_resource(user_resource.UsersSubscriptionsResource, '/api/subscribe/<from_for>/<int:users_id>')
-    # api.add_resource(user_resource.UsersSubscribeResource, '/api/subscribe/<int:users_id>/<int:subscribers_id>')
 
     api.add_resource(product_resource.ProductsResource, '/api/products/<int:products_id>')
-    # api.add_resource(product_resource.ProductsSearchResource, '/api/products/<to_find>')
     api.add_resource(product_resource.ProductsListResource, '/api/products', endpoint='/products')
-    # api.add_resource(product_resource.ProductsByCategoryResource, '/api/products_by_category/<int:category_id>')
 
     api.add_resource(retailer_resource.RetailersListResource, '/api/retailers')
-    # api.add_resource(product_resource.ProductsByCategoryResource, '/api/retailers_by_category/<int:category_id>')
     #
     api.add_resource(category_resource.CategoriesListResource, '/api/categories')
-    #
-    # api.add_resource(message_resource.MessagesResource, '/api/messages/<int:message_id>')
-    # api.add_resource(message_resource.MessagesListResource, '/api/messages')
-    # api.add_resource(message_resource.MessagesDialogResource, '/api/messages/<int:sender>/<int:receiver>')
-    #
-    # api.add_resource(comment_resource.CommentsResource, '/api/comments/<int:comment_id>')
-    # api.add_resource(comment_resource.CommentsListResource, '/api/comments')
-    # api.add_resource(comment_resource.CommentsTreeResource, '/api/comments_tree/<int:publications_id>')
     WSGIRequestHandler.protocol_version = "HTTP/1.1"
     app.run(port=8080, host='127.0.0.1')
 
