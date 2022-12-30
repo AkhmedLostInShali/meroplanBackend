@@ -1,1 +1,1 @@
-from . import users, retailers, products, address, cheque, categories
+from . import users, events, categories

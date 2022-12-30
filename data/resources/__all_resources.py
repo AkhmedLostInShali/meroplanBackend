@@ -1,1 +1,1 @@
-from . import product_resource, category_resource, retailer_resource, user_resource
+from . import event_resource, category_resource, user_resource
