@@ -9,7 +9,7 @@ class Category(SqlAlchemyBase, SerializerMixin):
 
     id = sqlalchemy.Column(sqlalchemy.Integer,
                            primary_key=True, autoincrement=True)
-    root_chain = sqlalchemy.Column(sqlalchemy.String(128), nullable=False, default='1', unique=True)
-    parents_id = sqlalchemy.Column(sqlalchemy.Integer, nullable=True)
+    # root_chain = sqlalchemy.Column(sqlalchemy.String(128), nullable=False, default='1', unique=True)
+    # parents_id = sqlalchemy.Column(sqlalchemy.Integer, nullable=True)
     image_path = sqlalchemy.Column(sqlalchemy.String(128), nullable=False)
     name = sqlalchemy.Column(sqlalchemy.String(64), nullable=False)

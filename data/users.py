@@ -13,13 +13,23 @@ subscribes = sqlalchemy.Table('subscribes', SqlAlchemyBase.metadata,
                                                 index=True))
 
 
-class Association(SqlAlchemyBase, SerializerMixin):
-    __tablename__ = "association"
+class MemberAssociation(SqlAlchemyBase, SerializerMixin):
+    __tablename__ = "member_association"
     member_id = sqlalchemy.Column('member_id', sqlalchemy.String(8), sqlalchemy.ForeignKey('users.id'), index=True,
                                   primary_key=True)
     events_id = sqlalchemy.Column('events_id', sqlalchemy.String(8), sqlalchemy.ForeignKey('events.id'), index=True,
                                   primary_key=True)
     event = orm.relation("Event", backref="members", lazy="joined")
+
+
+class VoteAssociation(SqlAlchemyBase, SerializerMixin):
+    __tablename__ = "vote_association"
+    member_id = sqlalchemy.Column('user_id', sqlalchemy.String(8), sqlalchemy.ForeignKey('users.id'), index=True,
+                                  primary_key=True)
+    events_id = sqlalchemy.Column('event_id', sqlalchemy.String(8), sqlalchemy.ForeignKey('events.id'), index=True,
+                                  primary_key=True)
+    vote_text = sqlalchemy.Column(sqlalchemy.String(256), nullable=True)
+    event = orm.relation("Event", backref="votes", lazy="joined")
 
 
 class User(SqlAlchemyBase, UserMixin, SerializerMixin):
@@ -33,7 +43,10 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
     surname = sqlalchemy.Column(sqlalchemy.String(64), nullable=True)
     image_path = sqlalchemy.Column(sqlalchemy.String(128), default='static/img/users/default.png')
     secret = sqlalchemy.Column(sqlalchemy.String(256), nullable=False)
-    membered_events = orm.relation('Association', cascade="all, delete-orphan", lazy="joined")
+    favorite_categories = sqlalchemy.Column(sqlalchemy.String(16), nullable=True)
+    membered_events = orm.relation('MemberAssociation', cascade="all, delete-orphan", lazy="joined")
+
+    voted_events = orm.relation('VoteAssociation', cascade="all, delete-orphan", lazy="joined")
 
     subscribed = orm.relation('User', secondary=subscribes,
                               primaryjoin=(subscribes.c.subscriber_id == id),
@@ -49,7 +62,7 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
 
     def to_member(self, event):
         if event.id not in [assoc.events_id for assoc in self.membered_events]:
-            assoc = Association()
+            assoc = MemberAssociation()
             assoc.event = event
             self.membered_events.append(assoc)
             return self
@@ -57,6 +70,18 @@ class User(SqlAlchemyBase, UserMixin, SerializerMixin):
     def to_dismember(self, event):
         if event.id in [assoc.events_id for assoc in self.membered_events]:
             self.membered_events.remove([assoc for assoc in self.membered_events if assoc.events_id == event.id][0])
+            return self
+
+    def to_vote(self, event):
+        if event.id not in [assoc.events_id for assoc in self.membered_events]:
+            assoc = VoteAssociation()
+            assoc.event = event
+            self.voted_events.append(assoc)
+            return self
+
+    def to_unvote(self, event):
+        if event.id in [assoc.events_id for assoc in self.voted_events]:
+            self.voted_events.remove([assoc for assoc in self.voted_events if assoc.events_id == event.id][0])
             return self
 
     def to_subscribe(self, user):

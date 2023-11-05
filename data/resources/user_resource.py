@@ -3,7 +3,7 @@ import datetime
 from flask import jsonify, request
 from flask_restful import abort, Resource
 
-from .event_resource import abort_if_event_not_found
+from .abort_if_not_found import abort_if_user_not_found, abort_if_event_not_found
 from .. import db_session
 from ..events import Event
 from ..users import User
@@ -11,14 +11,6 @@ from server import token_required
 import logging
 
 logging.basicConfig(level=logging.INFO)
-
-
-def abort_if_user_not_found(users_id):
-    session = db_session.create_session()
-    user = session.query(User).get(users_id)
-    if not user:
-        abort(404, message=f"User {users_id} not found")
-    session.close()
 
 
 def jsonify_user(user):
@@ -34,29 +26,29 @@ class MyProfileResource(Resource):
         db_sess = db_session.create_session()
         user = db_sess.query(User).get(users_id)
         user_dict = jsonify_user(user)
-        upcoming_events = []
-        visited_events = []
-        for event in user.membered_events:
-            out_dict = event.to_dict(only=('id', 'image_path', 'name', 'address'))
-            out_dict['members'] = event.members.count()
-            out_dict['sponsors_name'] = event.sponsor.name  # тут я упростил
-            out_dict['sponsors_image_path'] = event.sponsor.image_path
-            out_dict['date'] = event.datetime.strftime('%m.%d.%Y')
-            out_dict['time'] = event.datetime.strftime('%H:%M')
-            if event.datetime > datetime.datetime.now():
-                upcoming_events.append(out_dict)
-            else:
-                visited_events.append(out_dict)
-        user_dict['upcoming_events'] = upcoming_events
-        user_dict['visited_events'] = visited_events
-        sponsored_events = []
-        for event in user.sponsored_events:
-            out_dict = event.to_dict(only=('id', 'image_path', 'name', 'address'))
-            out_dict['members'] = event.members.count()
-            out_dict['date'] = event.datetime.strftime('%m.%d.%Y')
-            out_dict['time'] = event.datetime.strftime('%H:%M')
-            sponsored_events.append(out_dict)
-        user_dict['sponsored_events'] = visited_events
+        # upcoming_events = []
+        # visited_events = []
+        # for event in user.membered_events:
+        #     out_dict = event.to_dict(only=('id', 'image_path', 'name', 'address'))
+        #     out_dict['members'] = event.members.count()
+        #     out_dict['sponsors_name'] = event.sponsor.name  # тут я упростил
+        #     out_dict['sponsors_image_path'] = event.sponsor.image_path
+        #     out_dict['date'] = event.datetime.strftime('%m.%d.%Y')
+        #     out_dict['time'] = event.datetime.strftime('%H:%M')
+        #     if event.datetime > datetime.datetime.now():
+        #         upcoming_events.append(out_dict)
+        #     else:
+        #         visited_events.append(out_dict)
+        # user_dict['upcoming_events'] = upcoming_events
+        # user_dict['visited_events'] = visited_events
+        # sponsored_events = []
+        # for event in user.sponsored_events:
+        #     out_dict = event.to_dict(only=('id', 'image_path', 'name', 'address'))
+        #     out_dict['members'] = event.members.count()
+        #     out_dict['date'] = event.datetime.strftime('%m.%d.%Y')
+        #     out_dict['time'] = event.datetime.strftime('%H:%M')
+        #     sponsored_events.append(out_dict)
+        # user_dict['sponsored_events'] = visited_events
         db_sess.close()
         return jsonify({'item': user_dict, 'status_code': 200})
 

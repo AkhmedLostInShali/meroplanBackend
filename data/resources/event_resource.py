@@ -10,20 +10,16 @@ from werkzeug.utils import secure_filename
 
 import image_cutter
 from server import token_required, allowed_file
+from .abort_if_not_found import abort_if_event_not_found, abort_if_user_not_found
 from .. import db_session, my_parsers
 from ..events import Event
 import logging
 
+from ..users import User
+
 logging.basicConfig(level=logging.INFO)
 
 parser = my_parsers.EventParser()
-
-
-def abort_if_event_not_found(events_id):
-    session = db_session.create_session()
-    event = session.query(Event).get(events_id)
-    if not event:
-        abort(404, message=f"Event with id={events_id} not found")
 
 
 class EventsResource(Resource):
@@ -75,25 +71,57 @@ class EventsResource(Resource):
 class EventsListResource(Resource):
     @token_required
     def get(self, token_data):
+        users_id = token_data['user_id']
+        abort_if_user_not_found(users_id)
+
         db_sess = db_session.create_session()
 
-        search_query = f"%{'%'.join(request.args.get('search_query', default='', type=str).split('_'))}%".lower()
+        advanced_filter = request.args.get('advanced_filter', default=None, type=str) == 'yes'
 
-        category_id = request.args.get('category_id', default=0, type=int)
-        if category_id:
+        search_query = f"%{'%'.join(request.args.get('search_query', default='', type=str).split('_'))}%".lower()
+        if advanced_filter:
             events_query = db_sess.query(Event).filter(
-                Event.datetime > datetime.datetime.now()).order_by(Event.datetime.desc()).filter(
-                Event.category_root_chain.startswith(f'{category_id};') |
-                Event.category_root_chain.endswith(f';{category_id}') |
-                Event.category_root_chain.contains(f';{category_id};')).filter(
-                Event.search_info.ilike(search_query))
+                    Event.datetime > datetime.datetime.now()).filter(
+                    Event.search_info.ilike(search_query))
+            category_af = request.args.get('category', default=None, type=str)
+            first_date_af = request.args.get('first_date', default=None, type=str)
+            last_date_af = request.args.get('last_date', default=None, type=str)
+            min_member_af = request.args.get('min_member', default=None, type=str)
+            max_member_af = request.args.get('max_member', default=None, type=str)
+            address_af = request.args.get('address', default=None, type=str)
+            # sorting_af = request.args.get('sorting', default='basic', type=str)
+            if category_af:
+                events_query = events_query.filter(Event.category_id == int(category_af))
+            if first_date_af:
+                events_query = events_query.filter(Event.datetime >= datetime.datetime.strptime(
+                    first_date_af, '%d.%m.%y').replace(hour=23, minute=59))
+            if last_date_af:
+                events_query = events_query.filter(Event.datetime <= datetime.datetime.strptime(
+                    last_date_af, '%d.%m.%y').replace(hour=23, minute=59))
+            if min_member_af:
+                events_query = events_query.filter(Event.member_capacity >= int(min_member_af))
+            if max_member_af:
+                events_query = events_query.filter(Event.member_capacity <= int(max_member_af))
+            if address_af:
+                events_query = events_query.filter(Event.search_info.ilike(f'%{address_af.lower()}%'))
+            # if sorting_af == 'basic':
+            #     events_query = events_query.order_by(Event.votes.desc())
         else:
-            events_query = db_sess.query(Event).filter(
-                Event.datetime > datetime.datetime.now()).order_by(Event.datetime.desc()).filter(
-                Event.search_info.ilike(search_query))
+            categories = db_sess.query(User).get(users_id).favorite_categories
+
+            if categories:
+                events_query = db_sess.query(Event).filter(
+                    Event.datetime > datetime.datetime.now()).order_by(Event.datetime.desc()).filter(
+                    Event.category_id.in_(categories.split(';'))).filter(
+                    Event.search_info.ilike(search_query))
+            else:
+                events_query = db_sess.query(Event).filter(
+                    Event.datetime > datetime.datetime.now()).order_by(Event.datetime.desc()).filter(
+                    Event.search_info.ilike(search_query))
 
         if events_query.count() == 0:
-            return jsonify({'items': [], 'total_pages': 0, 'status_code': 200})
+            db_sess.close()
+            return jsonify({'items': [], 'total_pages': 0, 'status_code': 404})
 
         page_len = 10
         total_pages = events_query.count() // page_len + (1 if events_query.count() % page_len else 0)
@@ -111,11 +139,13 @@ class EventsListResource(Resource):
             out_dict['sponsors_name'] = ' '.join([event.sponsor.name, (event.sponsor.surname if
                                                                        event.sponsor.surname else '')])  # тут я упростил
             out_dict['sponsors_image_path'] = event.sponsor.image_path
-            out_dict['date'] = event.datetime.strftime('%m.%d.%Y')
+            out_dict['date'] = event.datetime.strftime('%d.%m.%Y')
             out_dict['time'] = event.datetime.strftime('%H:%M')
-            out_dict['categories'] = [int(x) for x in event.category_root_chain.split(';') if x]
+            out_dict['category_id'] = event.category_id
             out_list.append(out_dict)
         db_sess.close()
+        # print("got here")
+        print(out_list)
         return jsonify({'items': out_list, 'total_pages': total_pages, 'status_code': 200})\
 
 
@@ -137,6 +167,7 @@ class EventsListResource(Resource):
             file.save(filepath)
             logging.info(image_cutter.get_central_rect((328, 190), filepath))
         else:
+            db_sess.close()
             return abort(404)
 
         event.image_path = filepath
